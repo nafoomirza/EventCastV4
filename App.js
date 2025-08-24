@@ -1,7 +1,6 @@
-SplashScreen.preventAutoHideAsync();
-import * as SplashScreen from 'expo-splash-screen';
-import { useFonts } from 'expo-font';
-import React, { useState, useEffect , useEffect } from 'react';
+import React, { useState, useEffect } from "react";
+import * as Font from "expo-font";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import {
   StyleSheet,
@@ -173,10 +172,8 @@ const cities = {
 };
 
 export default function App() {
-  const [fontsLoaded] = useFonts({ ...Icon.font });
-  useEffect(() => { if (fontsLoaded) SplashScreen.hideAsync(); }, [fontsLoaded]);
-  if (!fontsLoaded) return null;
   const [showWelcome, setShowWelcome] = useState(true);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
 
   const [continent, setContinent] = useState(null);
   const [country, setCountry] = useState(null);
@@ -187,6 +184,7 @@ export default function App() {
 
   const [menuType, setMenuType] = useState(null); // 'continent', 'country', 'city', 'timeRange'
   const [locationChecked, setLocationChecked] = useState(false);
+  const [firstAutoSearchDone, setFirstAutoSearchDone] = useState(false);
   // Helper to map country to continent
   function getContinentFromCountry(countryName) {
     for (const [cont, countriesArr] of Object.entries(countries)) {
@@ -202,6 +200,20 @@ export default function App() {
   }
 
   // Detect location on mount
+  // Load MaterialCommunityIcons font before rendering icons
+  useEffect(() => {
+    async function loadFonts() {
+      try {
+        await Font.loadAsync(MaterialCommunityIcons.font);
+        setFontsLoaded(true);
+      } catch (e) {
+        console.error("Font loading error:", e);
+        setFontsLoaded(true); // Prevent app from being stuck
+      }
+    }
+    loadFonts();
+  }, []);
+
   useEffect(() => {
     async function detectLocation() {
       try {
@@ -219,6 +231,7 @@ export default function App() {
           setContinent(continentGuess);
           setCountry(detectedCountry);
           setCity(getCityFromCountry(detectedCountry, detectedCity));
+          setTimeRange("thisyear"); // Autofill timeRange as 'thisyear'
         }
       } catch (e) {
         // Ignore location errors
@@ -230,6 +243,16 @@ export default function App() {
       detectLocation();
     }
   }, [locationChecked, continent, country, city]);
+
+  // Auto-search for events after autofill (first time only)
+  useEffect(() => {
+    if (
+      continent && country && city && timeRange === "thisyear" && !firstAutoSearchDone
+    ) {
+      fetchEvents();
+      setFirstAutoSearchDone(true);
+    }
+  }, [continent, country, city, timeRange, firstAutoSearchDone]);
 
   const timeOptions = [
     { label: "Today", value: "today" },
@@ -287,6 +310,15 @@ export default function App() {
   useEffect(() => {
     if (city && timeRange) fetchEvents();
   }, [city, timeRange]);
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" }}>
+        <ActivityIndicator size="large" color="#302b63" />
+        <Text style={{ marginTop: 20, color: "#302b63", fontSize: 16 }}>Loading assets...</Text>
+      </View>
+    );
+  }
 
   if (showWelcome) {
     return (
